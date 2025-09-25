@@ -115,6 +115,10 @@ func configure(exp *types.Experiment) error {
 	if err != nil {
 		return fmt.Errorf("extracting app metadata: %w", err)
 	}
+	amd.Init()
+	if amd.MirrorBridge == "" {
+		amd.MirrorBridge = exp.Spec.DefaultBridge()
+	}
 
 	nw, err := mirrorNet(&amd)
 	if err != nil {
@@ -248,6 +252,11 @@ func postStart(exp *types.Experiment, dryrun bool) (ferr error) {
 	if err != nil {
 		return fmt.Errorf("extracting app metadata: %w", err)
 	}
+	amd.Init()
+	if amd.MirrorBridge == "" {
+		amd.MirrorBridge = exp.Spec.DefaultBridge()
+	}
+
 
 	nw, err := mirrorNet(&amd)
 	if err != nil {
@@ -483,6 +492,9 @@ func cleanup(exp *types.Experiment, dryrun bool) error {
 	}
 
 	amd.Init()
+	if amd.MirrorBridge == "" {
+		amd.MirrorBridge = exp.Spec.DefaultBridge()
+	}
 
 	cluster := cluster(exp)
 
@@ -690,4 +702,25 @@ func vlanTaps(ns string, vms, vlans []string) []string {
 	}
 
 	return taps
+}
+func runningExperiments() ([]*types.Experiment, error) {
+	configs, err := store.List("Experiment")
+	if err != nil {
+		return nil, fmt.Errorf("getting list of experiment configs from store: %w", err)
+	}
+
+	var experiments []*types.Experiment
+
+	for _, c := range configs {
+		exp, err := types.DecodeExperimentFromConfig(c)
+		if err != nil {
+			return nil, fmt.Errorf("decoding experiment %s from config: %w", c.Metadata.Name, err)
+		}
+
+		if exp.Running() {
+			experiments = append(experiments, exp)
+		}
+	}
+
+	return experiments, nil
 }
